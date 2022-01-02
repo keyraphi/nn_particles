@@ -28,7 +28,7 @@ https://user-images.githubusercontent.com/7500902/147886768-df1af49c-5d9a-4219-9
 
 ## Will it scale
 The code takes about 40ms to run on my 10 year old PC for the example above. With geometry nodes I get about 6 fps. This will however not scale well.
-The KNN-algorithm is naive and has a quadratic complexity. It could be replaced with something like ![flann](https://github.com/flann-lib/flann) if hundred of thousands of points need to be connected quickly.
+The KNN-algorithm is naive and has a quadratic complexity. It could be replaced with something like [flann](https://github.com/flann-lib/flann) if hundred of thousands of points need to be connected quickly.
 Here is a video with some more particles: [more points](https://youtu.be/IgjyHYfrs-I).
 
 For this larger example the KNN creation took already about 3-4 sec per frame.
