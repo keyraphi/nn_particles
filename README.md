@@ -13,6 +13,6 @@ You first have to bake the fluid simulation in the _Fluid Domain_ object. Then g
 ## What do I get.
 Here is what the demo produces. The look is obviously not tuned
 
-![Particles](/demo_videos/Particles0001-0250.webm)
-![KNN Graph](/demo_videos/Edges0001-0250.webm)
-![Geometry Nodes Result](/demo_videos/GeoNodes_eevee0001-0250.webm)
+![Particles](/demo_videos/Particles0001-0250.mp4)
+![KNN Graph](/demo_videos/Edges0001-0250.mp4)
+![Geometry Nodes Result](/demo_videos/GeoNodes_eevee0001-0250.mp4)
