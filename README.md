@@ -1,5 +1,6 @@
 # Web from Particles
 A simple script + geometry-nodes for making a "web" from a particle system. This could be used to generate some cool effects in Blender.
+The inspiration came from the tutorial [Recreating Hollywood VFX in Blender](https://www.youtube.com/watch?v=C5UmtZRqy5Y&lc=UgzXTcDJOjjcZbc9ued4AaABAg.9WXV2WZ8fH19Wj2qDGdDHg) by [Bad Normals](https://www.youtube.com/c/BadNormals/videos).
 
 ## How does it work?
 There is a FLIP fluid simulation in the scene, which is hold by the _Fluid Domain_. The script connects each particle with its `k` closest neighbours - `k=7` in the demo. The coordinates of the particles are used as vertices whereas the connections to the nearest neigbours are set as edges in the _ParticleMeshObject_.
