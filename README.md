@@ -34,6 +34,6 @@ Here is a video with some more particles (4sec per frame): [more points](https:/
 On my machine ~11k particles are the limit of what is possible (15sec per frame): [11k particles](https://youtu.be/7T_UaafsotM).
 
 ## Limitations and Future Work
-As mentioned before the NN-Graph generation has a quadratic computational and memory complexity, so it will get slow really quicly if many points are used.
-Also the web mesh is re-generated in every frame. Cycles therefore does not treat it as a moving/deforming object, instead as a new static object in every frame. This essentially makes rendered motion blur impossible. It might be possible to add vector motion blur via code (not sure about that), but that is currently also msising.
-This demo is not very usefull as it is. I might convert it into a plugin if I find the time. 
+* As mentioned before the NN-Graph generation has a quadratic computational and memory complexity, so it will get slow really quicly if many points are used.
+* Also the web mesh is re-generated in every frame. Cycles therefore does not treat it as a moving/deforming object, instead as a new static object in every frame. This essentially makes rendered motion blur impossible. It might be possible to add vector motion blur via code (not sure about that), but that is currently also msising.
+* This demo is not very usefull as it is. I might convert it into a plugin if I find the time. 
