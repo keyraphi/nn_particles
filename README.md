@@ -1,18 +1,9 @@
 # nn_particles
-A simple script + geometry-nodes for making a "web" from a particle system
+This is a blender addon to create a web like mesh from a particle system by connecting close points with each other.
 
-## How does it work?
-There is a fluid simulation in the scene, which is hold by the _Fluid Domain_. The script connects each particle with its `k` closest neighbours - `k=7` in the demo. The coordinates of the particles are used as vertices whereas the connections to the nearest neigbours are set as edges in the _ParticleMeshObject_.
-The _ParticleMeshObject_ has a GeometryNode setup _Geometry Nodes.001_, which converts the edges into curves, shapes them and extracts some information for shading.
+## Dependencies
+The addon is very efficient and works with millions of particles if the required dependencies are installed. After installing the plugin as usual you have to install the dependencies [annoy](https://github.com/spotify/annoy) in the addon preferences manually. The addon will also work without this, however it will only work well with ~1000 particles.
+If blender is installed to your system the dependency installation will need admin permissions. If you downloaded blender and just run it, it should work without issue.
 
-In principle this should work for any particle system. The name "Fluid Domain" is hard-coded in the script, but feel free to change that.
-
-## How can I reproduce it?
-You first have to bake the fluid simulation in the _Fluid Domain_ object. Then go to the Script tab and run the script. The _ParticleMeshObject_ will then automatically update on every frame change.
-
-## What do I get.
-Here is what the demo produces. The look is obviously not tuned
-
-![Particles](/demo_videos/Particles0001-0250.webm)
-![KNN Graph](/demo_videos/Edges0001-0250.webm)
-![Geometry Nodes Result](/demo_videos/GeoNodes_eevee0001-0250.webm)
+## Examples
+![alt text](plugin.png "Image")
