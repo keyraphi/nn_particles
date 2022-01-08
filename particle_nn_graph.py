@@ -18,6 +18,8 @@ bl_info = {
 import bpy
 import os
 import sys
+import numpy as np
+import bmesh
 import subprocess
 import importlib
 from collections import namedtuple
@@ -145,10 +147,172 @@ class NN_GRAPH_OT_dummy_operator(bpy.types.Operator):
     bl_options = {"REGISTER"}
 
     def execute(self, context):
-        # "angular", "euclidean", "manhattan", "hamming", or "dot"
-        nn_idx = annoy.AnnoyIndex(3, "euclidean")
-        print(nn_idx)
+        emitter = context.scene.particle_nn_graph_emitter
+        particle_coordinates = self.get_particle_coordinates(emitter, context)
+        knn = self.compute_knn(
+            particle_coordinates,
+            context.scene.particle_nn_graph_distance,
+            context.scene.particle_nn_graph_connections + 1,
+        )
+        web_name = context.scene.particle_nn_graph_emitter.name + "_web"
+        web = self.generate_web(particle_coordinates, knn, web_name, context)
+        if context.scene.particle_nn_graph_add_geometry_nodes:
+            web = self.add_geometry_nodes(web, context)
         return {"FINISHED"}
+
+    def add_geometry_nodes(self, obj, context):
+        """Makes sure that the web obj has a geometry-node setup.
+        This will only add a geometry node setup if the object does not have one yet.
+        Args:
+            obj: The web object to which the geometry nodes are added.
+            context: The current context.
+        Returns:
+            The web object.
+        """
+        if self.has_geometry_nodes(obj):
+            return obj
+        # create Geometry Node modifier
+        mod = obj.modifiers.new("GeometryNodes_web", 'NODES') 
+        mod.name="GeometryNodes_web"
+        node_group = mod.node_group
+        node_group.name = "GeometryNodes_web"
+        nodes = node_group.nodes
+        # convert web to curve
+        mesh_to_curve = nodes.new("MESH_TO_CURVE")
+
+        print(dir(mod.node_group))
+        print(mod.node_group.name, mod.node_group.name_full)
+        print([n for n in mod.node_group.nodes])
+        return obj
+
+    def has_geometry_nodes(self, obj):
+        """Checks if a given object uses geometry node modifiers"""
+        for mod in obj.modifiers:
+            if mod.type == "NODES":
+                return True
+        return False
+
+    def generate_web(
+        self, points: np.ndarray, knn: np.ndarray, obj_name: str, context
+    ):
+        """Generate (or update existing) web object from given knn.
+        Args:
+            points: 3D coordinates of the particles. Shape [N, 3]
+            knn: The knn index structure. Shape [N, k]
+            obj_name: The name of the generated/updated object.
+            context: current blender context.
+
+        Returns:
+            The generated object
+        """
+        # use bmesh to create web
+        bm = bmesh.new()
+        if obj_name in bpy.data.objects:
+            obj = bpy.data.objects[obj_name]
+            mesh = obj.data
+            bm.from_mesh(mesh)
+        else:
+            mesh = bpy.data.meshes.new("mesh")
+            obj = bpy.data.objects.new(obj_name, mesh)
+            context.collection.objects.link(obj)
+        # Check if vertex count is already correct
+        if len(points) != len(bm.verts):
+            context = "VERTS"
+            geom = bm.verts
+        else:
+            context = "EDGES_FACES"  # keep vertices
+            geom = bm.edges
+        bmesh.ops.delete(bm, geom=geom, context=context)
+        if context != "EDGES_FACES":
+            # create the new vertices
+            for point in points:
+                bm.verts.new(point)
+        else:
+            # move existing vertices
+            for vertex, point in zip(bm.verts, points):
+                vertex.co.xyz = point
+
+        # add edges
+        bm.verts.ensure_lookup_table()
+        existing_edges = set()  # do not add edges in both directions
+        for edge in knn:
+            start = edge[0]
+            for end in edge[1:]:
+                if (end, start) not in existing_edges and (
+                    start,
+                    end,
+                ) not in existing_edges:
+                    bm.edges.new([bm.verts[start], bm.verts[end]])
+                    existing_edges.add((start, end))
+        # update the mesh
+        bm.to_mesh(mesh)
+        mesh.update()
+        bm.free()
+        return obj
+
+    def get_particle_coordinates(self, emitter, context) -> np.ndarray:
+        """Gets the 3d-coordinates of the particles from the given emitter.
+        Returns array of shape [N, 3], where N is the number of particles.
+        """
+        depsgraph = context.evaluated_depsgraph_get()
+        emitter = emitter.evaluated_get(depsgraph)
+        particle_system = emitter.particle_systems.active
+        particles = np.array([p.location for p in particle_system.particles])
+        return particles
+
+    def compute_knn(
+        self, points: np.ndarray, distance_measure: str, k: int
+    ) -> np.ndarray:
+        """Generates a KNN for the given points.
+        Args:
+            points:
+                Array of 3d points. Shape [N, 3].
+            distance_measure:
+                The distance measure. One of ['angular', 'euclidean', 'manhattan', 'dot']
+            k:
+                Number of nearest neigbours to find (point itself included).
+        Returns:
+            The k nearest neigbours of each point. Shape [N, K], type: int.
+        """
+        if dependencies_installed:
+            return self._annoy_knn(points, distance_measure, k)
+        else:
+            return self._numpy_knn(points, distance_measure, k)
+
+    def _annoy_knn(self, points: np.ndarray, distance_measure: str, k: int):
+        """Fast knn search using annoy."""
+        nn_idx = annoy.AnnoyIndex(3, distance_measure)
+        # build index structure
+        for i, point in enumerate(points):
+            nn_idx.add_item(i, point)
+        nn_idx.build(10)
+        knn = np.array([nn_idx.get_nns_by_item(i, k) for i in range(len(points))])
+        return knn
+
+    def _numpy_knn(self, points: np.ndarray, distance_measure: str, k: int):
+        """Slow knn search using numpy. This will not scale beyond 1000 points"""
+        other_points = points.reshape([1, -1, 3])
+        points = points.reshape([-1, 1, 3])
+        differences = points - other_points
+        if distance_measure == "euclidean":
+            distances = np.sqrt(np.einsum("nmd,nmd->nm", differences, differences))
+        elif distance_measure == "manhattan":
+            distances = np.sum(np.abs(differences), axis=2)
+        elif distance_measure == dot:
+            distances = np.einsum("nmd,nmd->nm", differences, differences)
+        else:
+            assert distance_measure == "angular"
+            points_len = np.linalg.norm(points, ord=2, axis=2, keepdims=True)
+            other_points_len = np.linalg.norm(
+                other_points, ord=2, axis=2, keepdims=True
+            )
+            norm_differences = points / points_len - other_points / other_points_len
+            distances = np.sqrt(
+                np.einsum("nmd,nmd->nm", norm_differences, norm_differences)
+            )
+
+        sorted_idx = np.argsort(distances, axis=1)
+        return sorted_idx[:, :k]
 
 
 class NN_GRAPH_PT_panel(bpy.types.Panel):
@@ -173,20 +337,22 @@ class NN_GRAPH_PT_panel(bpy.types.Panel):
             box = layout.box()
             box.label(text="All dependencies installed.")
 
-        layout.operator(NN_GRAPH_OT_dummy_operator.bl_idname)
-
-        for i in range(4):
-            layout.operator_menu_enum(
-                NN_GRAPH_OT_dummy_operator.bl_idname,
-                property=f"Test{i}",
-                text="Hello World{i}",
-                text_ctxt="",
-                translate=False,
-                icon="CONSOLE",
-            )
-
-
-classes = (NN_GRAPH_OT_dummy_operator, NN_GRAPH_PT_panel)
+        row = layout.row()
+        row.prop_search(
+            context.scene,
+            "particle_nn_graph_emitter",
+            context.scene,
+            "objects",
+            text="Emitter",
+        )
+        row = layout.row()
+        row.prop(context.scene, "particle_nn_graph_distance")
+        row = layout.row()
+        row.prop(context.scene, "particle_nn_graph_connections")
+        row = layout.row()
+        row.prop(context.scene, "particle_nn_graph_add_geometry_nodes")
+        row = layout.row()
+        row.operator(NN_GRAPH_OT_dummy_operator.bl_idname)
 
 
 class NN_GRAPH_PT_warning_panel(bpy.types.Panel):
@@ -269,16 +435,61 @@ class NN_GRAPH_preferences(bpy.types.AddonPreferences):
         layout.operator(NN_GRAPH_OT_install_dependencies.bl_idname, icon="CONSOLE")
 
 
+# Keep track of what to register
+classes = (
+    NN_GRAPH_OT_dummy_operator,
+    NN_GRAPH_PT_panel,
+)
+
 preference_classes = (
     NN_GRAPH_PT_warning_panel,
     NN_GRAPH_OT_install_dependencies,
     NN_GRAPH_preferences,
 )
 
+# keep track of registered properties
+possible_distances = [
+    ("angular", "Angular", "Euclidean distance of normalized vectors", 1),
+    ("euclidean", "Euclidean", "Euclidean distance (root squared error)", 2),
+    ("manhattan", "Manhattan", "Manhattan distance (absolute error)", 3),
+    ("dot", "Dot", "Dot product distance (cosine error)", 4),
+]
+distance_property = bpy.props.EnumProperty(
+    items=possible_distances, name="Distance", default=2
+)
+
+
+def emitter_poll(self, obj):
+    """Checks if an object contains a particle system"""
+    for modifier in obj.modifiers:
+        if modifier.type == "PARTICLE_SYSTEM":
+            return True
+    return False
+
+
+properties = [
+    ("particle_nn_graph_distance", distance_property),
+    (
+        "particle_nn_graph_emitter",
+        bpy.props.PointerProperty(type=bpy.types.Object, poll=emitter_poll),
+    ),
+    (
+        "particle_nn_graph_connections",
+        bpy.props.IntProperty(name="Connections", default=5, min=1, soft_max=30),
+    ),
+    (
+        "particle_nn_graph_add_geometry_nodes",
+        bpy.props.BoolProperty(name="Geometry Nodes", default=False),
+    ),
+]
+
 
 def register():
     global dependencies_installed
     dependencies_installed = False
+
+    for (prop_name, prop_value) in properties:
+        setattr(bpy.types.Scene, prop_name, prop_value)
 
     for cls in preference_classes:
         bpy.utils.register_class(cls)
@@ -296,6 +507,9 @@ def register():
 
 
 def unregister():
+    for (prop_name, _) in properties:
+        delattr(bpy.types.Scene, prop_name)
+
     for cls in preference_classes:
         bpy.utils.unregister_class(cls)
 
@@ -306,4 +520,3 @@ def unregister():
 
 if __name__ == "__main__":
     register()
-
