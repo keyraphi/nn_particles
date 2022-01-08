@@ -140,10 +140,10 @@ def install_and_import_module(
     import_module(module_name, global_name)
 
 
-class NN_GRAPH_OT_dummy_operator(bpy.types.Operator):
-    bl_idname = "nn_graph.dummy_operator"
-    bl_label = "Dummy Operator"
-    bl_description = "This operator tries to use annoy."
+class NN_GRAPH_OT_web_operator(bpy.types.Operator):
+    bl_idname = "nn_graph.web_operator"
+    bl_label = "Web Operator"
+    bl_description = "Generates a web from the active particle system of the selected emitter."
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -155,8 +155,10 @@ class NN_GRAPH_OT_dummy_operator(bpy.types.Operator):
             context.scene.particle_nn_graph_connections + 1,
         )
         web_name = context.scene.particle_nn_graph_emitter.name + "_web"
+        # web (edges only)
         web = self.generate_web(particle_coordinates, knn, web_name, context)
         if context.scene.particle_nn_graph_add_geometry_nodes:
+            # convert to real mesh
             web = self.add_geometry_nodes(web, context)
         return {"FINISHED"}
 
@@ -178,11 +180,10 @@ class NN_GRAPH_OT_dummy_operator(bpy.types.Operator):
         node_group.name = "GeometryNodes_web"
         nodes = node_group.nodes
         # convert web to curve
+        # TODO: This does not work :/
         mesh_to_curve = nodes.new("MESH_TO_CURVE")
-
-        print(dir(mod.node_group))
-        print(mod.node_group.name, mod.node_group.name_full)
-        print([n for n in mod.node_group.nodes])
+        curve_to_curve = nodes.new("CURVE_TO_MESH")
+        print("all nodes:", [n for n in nodes])
         return obj
 
     def has_geometry_nodes(self, obj):
@@ -352,7 +353,7 @@ class NN_GRAPH_PT_panel(bpy.types.Panel):
         row = layout.row()
         row.prop(context.scene, "particle_nn_graph_add_geometry_nodes")
         row = layout.row()
-        row.operator(NN_GRAPH_OT_dummy_operator.bl_idname)
+        row.operator(NN_GRAPH_OT_web_operator.bl_idname)
 
 
 class NN_GRAPH_PT_warning_panel(bpy.types.Panel):
@@ -437,7 +438,7 @@ class NN_GRAPH_preferences(bpy.types.AddonPreferences):
 
 # Keep track of what to register
 classes = (
-    NN_GRAPH_OT_dummy_operator,
+    NN_GRAPH_OT_web_operator,
     NN_GRAPH_PT_panel,
 )
 
