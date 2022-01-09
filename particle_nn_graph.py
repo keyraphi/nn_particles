@@ -143,7 +143,9 @@ def install_and_import_module(
 class NN_GRAPH_OT_web_operator(bpy.types.Operator):
     bl_idname = "nn_graph.web_operator"
     bl_label = "Web Operator"
-    bl_description = "Generates a web from the active particle system of the selected emitter."
+    bl_description = (
+        "Generates a web from the active particle system of the selected emitter."
+    )
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -174,8 +176,8 @@ class NN_GRAPH_OT_web_operator(bpy.types.Operator):
         if self.has_geometry_nodes(obj):
             return obj
         # create Geometry Node modifier
-        mod = obj.modifiers.new("GeometryNodes_web", 'NODES') 
-        mod.name="GeometryNodes_web"
+        mod = obj.modifiers.new("GeometryNodes_web", "NODES")
+        mod.name = "GeometryNodes_web"
         node_group = mod.node_group
         node_group.name = "GeometryNodes_web"
         nodes = node_group.nodes
@@ -193,9 +195,7 @@ class NN_GRAPH_OT_web_operator(bpy.types.Operator):
                 return True
         return False
 
-    def generate_web(
-        self, points: np.ndarray, knn: np.ndarray, obj_name: str, context
-    ):
+    def generate_web(self, points: np.ndarray, knn: np.ndarray, obj_name: str, context):
         """Generate (or update existing) web object from given knn.
         Args:
             points: 3D coordinates of the particles. Shape [N, 3]
@@ -255,10 +255,14 @@ class NN_GRAPH_OT_web_operator(bpy.types.Operator):
         """Gets the 3d-coordinates of the particles from the given emitter.
         Returns array of shape [N, 3], where N is the number of particles.
         """
+        print("DEBUG:", emitter)
         depsgraph = context.evaluated_depsgraph_get()
         emitter = emitter.evaluated_get(depsgraph)
-        particle_system = emitter.particle_systems.active
-        particles = np.array([p.location for p in particle_system.particles])
+        # use all particles from all particle systems
+        particles = []
+        for particle_system in emitter.particle_systems:
+            particles.extend([p.location for p in particle_system.particles])
+        particles = np.array(particles)
         return particles
 
     def compute_knn(
@@ -354,6 +358,8 @@ class NN_GRAPH_PT_panel(bpy.types.Panel):
         row.prop(context.scene, "particle_nn_graph_add_geometry_nodes")
         row = layout.row()
         row.operator(NN_GRAPH_OT_web_operator.bl_idname)
+        row = layout.row()
+        row.prop(context.scene, "particle_nn_graph_register_to_frame_change")
 
 
 class NN_GRAPH_PT_warning_panel(bpy.types.Panel):
@@ -468,6 +474,19 @@ def emitter_poll(self, obj):
     return False
 
 
+def frame_change_handler(scene):
+    bpy.ops.nn_graph.web_operator()
+
+
+def update_framechange_checkbox(self, context):
+    """Registers the web-mesh operator to the frame changes"""
+    is_register = context.scene.particle_nn_graph_register_to_frame_change
+    if is_register:
+        bpy.app.handlers.frame_change_pre.append(frame_change_handler)
+    else:
+        bpy.app.handlers.frame_change_pre.remove(frame_change_handler)
+
+
 properties = [
     ("particle_nn_graph_distance", distance_property),
     (
@@ -481,6 +500,14 @@ properties = [
     (
         "particle_nn_graph_add_geometry_nodes",
         bpy.props.BoolProperty(name="Geometry Nodes", default=False),
+    ),
+    (
+        "particle_nn_graph_register_to_frame_change",
+        bpy.props.BoolProperty(
+            name="Refresh on frame change",
+            default=False,
+            update=update_framechange_checkbox,
+        ),
     ),
 ]
 
