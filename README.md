@@ -9,3 +9,5 @@ If blender is installed to your system the dependency installation will need adm
 ![alt text](plugin.png "Image")
 
 ![drone](https://user-images.githubusercontent.com/7500902/148919263-95b89a77-eaaf-4a33-9b0c-7e3905d8a4aa.png)
+
+[Drone video on Youtube](https://youtu.be/8QCfH7jPmHE)
